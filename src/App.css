@@ -497,11 +497,24 @@ kbd {
 .virt-leaderboard {
   overflow: hidden;
   max-height: none;
+  position: relative;
 }
-.virt-scroll {
-  overflow-y: auto;
-  overflow-x: hidden;
-  max-height: 400px;
+.lb-sticky-inline {
+  position: absolute;
+  left: 0; right: 0;
+  z-index: 4;
+  background: var(--surface2);
+  border: 1px solid var(--accent);
+}
+.lb-sticky-inline-top {
+  top: 38px; /* below lb-title */
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+}
+.lb-sticky-inline-bot {
+  bottom: 0;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
 }
 .lb-title {
   padding: 0.6rem 1rem;
@@ -536,15 +549,6 @@ kbd {
 .lb-pick-none { opacity: 0.3; }
 .lb-host { background: rgba(124,58,237,0.1); }
 
-.lb-sticky {
-  position: sticky;
-  left: 0; right: 0;
-  z-index: 2;
-  background: var(--surface2);
-  border: 1px solid var(--accent);
-}
-.lb-sticky-top { top: 0; border-top: none; border-radius: 0 0 6px 6px; }
-.lb-sticky-bottom { bottom: 0; border-bottom: none; border-radius: 6px 6px 0 0; }
 
 /* ── END ── */
 .screen-end {

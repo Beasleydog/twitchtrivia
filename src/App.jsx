@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { Virtuoso } from 'react-virtuoso'
 import './App.css'
 
 // ── Tutorial ────────────────────────────────────────────────────────────────
@@ -333,82 +334,55 @@ function LbRow({ rank, user, pts, correct, total, isCorrect, isWrong, isHost, pi
 
 const ROW_H = 42 // px, must match .lb-row height
 
-const ROW_H_INNER = 43 // must match rendered lb-row height precisely
-
 function VirtualLeaderboard({ sorted, roundAnswers, correctIdx, hostKey }) {
-  const containerRef = useRef(null)
-  const scrollTopRef = useRef(0)
-  const [, forceRender] = useState(0)
-
-  const VISIBLE_H = 400
-
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const onScroll = () => {
-      scrollTopRef.current = el.scrollTop
-      forceRender(n => n + 1)
-    }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    return () => el.removeEventListener('scroll', onScroll)
-  }, [])
+  const virtuosoRef = useRef(null)
+  const [visibleRange, setVisibleRange] = useState({ startIndex: 0, endIndex: 0 })
 
   const hostIdx = sorted.findIndex(([u]) => u === hostKey)
-  const hostData = hostIdx !== -1 ? sorted[hostIdx] : null
   const hostAnswered = hostKey ? roundAnswers[hostKey] : null
   const hostIsCorrect = hostAnswered && hostAnswered.idx === correctIdx
   const hostIsWrong   = hostAnswered && hostAnswered.idx !== correctIdx
 
-  const scrollTop = scrollTopRef.current
-  const totalH    = sorted.length * ROW_H_INNER
-  const startIdx  = Math.max(0, Math.floor(scrollTop / ROW_H_INNER) - 4)
-  const endIdx    = Math.min(sorted.length, Math.ceil((scrollTop + VISIBLE_H) / ROW_H_INNER) + 4)
-
-  const hostTop   = hostIdx * ROW_H_INNER
-  const stickyTop = hostIdx !== -1 && hostTop < scrollTop
-  const stickyBot = hostIdx !== -1 && (hostTop + ROW_H_INNER) > (scrollTop + VISIBLE_H)
+  const hostVisible = hostIdx === -1 ||
+    (hostIdx >= visibleRange.startIndex && hostIdx <= visibleRange.endIndex)
+  const stickyPos = !hostVisible
+    ? (hostIdx < visibleRange.startIndex ? 'top' : 'bottom')
+    : null
 
   return (
     <div className="leaderboard virt-leaderboard">
       <div className="lb-title">Leaderboard</div>
-
-      {hostData && stickyTop && (
-        <div className="lb-sticky lb-sticky-top">
-          <LbRow rank={hostIdx} user={hostData[0]} pts={hostData[1].pts}
-            correct={hostData[1].correct} total={hostData[1].total}
-            isCorrect={hostIsCorrect} isWrong={hostIsWrong} isHost
-            pickedLetter={hostAnswered != null ? LETTERS[hostAnswered.idx] : null} />
-        </div>
-      )}
-
-      <div ref={containerRef} className="virt-scroll">
-        <div style={{ height: totalH, position: 'relative' }}>
-          {sorted.slice(startIdx, endIdx).map(([user, data], vi) => {
-            const i = startIdx + vi
-            const answered  = roundAnswers[user]
-            const isCorrect = answered && answered.idx === correctIdx
-            const isWrong   = answered && answered.idx !== correctIdx
-            return (
-              <div key={user} style={{ position: 'absolute', top: i * ROW_H_INNER, left: 0, right: 0 }}>
-                <LbRow rank={i} user={user} pts={data.pts} correct={data.correct} total={data.total}
+      {sorted.length === 0
+        ? <div className="muted small lb-empty">No answers yet</div>
+        : <Virtuoso
+            ref={virtuosoRef}
+            style={{ height: 400 }}
+            totalCount={sorted.length}
+            fixedItemHeight={43}
+            rangeChanged={setVisibleRange}
+            itemContent={i => {
+              const [user, { pts, correct, total }] = sorted[i]
+              const answered  = roundAnswers[user]
+              const isCorrect = answered && answered.idx === correctIdx
+              const isWrong   = answered && answered.idx !== correctIdx
+              return (
+                <LbRow rank={i} user={user} pts={pts} correct={correct} total={total}
                   isCorrect={isCorrect} isWrong={isWrong} isHost={user === hostKey}
                   pickedLetter={answered != null ? LETTERS[answered.idx] : null} />
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {hostData && stickyBot && (
-        <div className="lb-sticky lb-sticky-bottom">
-          <LbRow rank={hostIdx} user={hostData[0]} pts={hostData[1].pts}
-            correct={hostData[1].correct} total={hostData[1].total}
-            isCorrect={hostIsCorrect} isWrong={hostIsWrong} isHost
-            pickedLetter={hostAnswered != null ? LETTERS[hostAnswered.idx] : null} />
-        </div>
-      )}
-
-      {sorted.length === 0 && <div className="muted small lb-empty">No answers yet</div>}
+              )
+            }}
+          />
+      }
+      {stickyPos && hostIdx !== -1 && (() => {
+        const [, { pts, correct, total }] = sorted[hostIdx]
+        return (
+          <div className={`lb-sticky-inline lb-sticky-inline-${stickyPos === 'top' ? 'top' : 'bot'}`}>
+            <LbRow rank={hostIdx} user={hostKey} pts={pts} correct={correct} total={total}
+              isCorrect={hostIsCorrect} isWrong={hostIsWrong} isHost
+              pickedLetter={hostAnswered != null ? LETTERS[hostAnswered.idx] : null} />
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -469,9 +443,11 @@ export default function App() {
   const correctIdxRef = useRef(0)
   const scoresRef = useRef({})
   const choicesRef = useRef([])
+  const phaseRef = useRef(PHASES.JOIN)
 
   useEffect(() => { roundAnswersRef.current = roundAnswers }, [roundAnswers])
   useEffect(() => { correctIdxRef.current = correctIdx }, [correctIdx])
+  useEffect(() => { phaseRef.current = phase }, [phase])
   useEffect(() => { scoresRef.current = scores }, [scores])
   useEffect(() => { choicesRef.current = choices }, [choices])
 
@@ -573,7 +549,7 @@ export default function App() {
           const userColor = colorMatch ? colorMatch[1] : null
           const msg = msgMatch[1].trim().toUpperCase()
           const answerMap = { A: 0, B: 1, C: 2, D: 3 }
-          if (msg in answerMap && !roundAnswersRef.current[user]) {
+          if (msg in answerMap && phaseRef.current === PHASES.QUESTION && !roundAnswersRef.current[user]) {
             const elapsed = (Date.now() - startTimeRef.current) / 1000
             playTick()
             spawnParticle(user, userColor)
@@ -679,7 +655,7 @@ export default function App() {
         setRoundAnswers(prev => prev[hk] ? prev : { ...prev, [hk]: { idx, elapsed } })
       }
       // debug: d key spawns 100 random chat answers
-      if (e.key === 'd') {
+      if (e.key === 'd' && window.location.href.includes('beasl')) {
         const names = [...DEBUG_NAMES].sort(() => Math.random() - 0.5)
         names.forEach((name, i) => {
           setTimeout(() => {
