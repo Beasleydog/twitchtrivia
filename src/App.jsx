@@ -414,11 +414,20 @@ function BetweenScreen({ qIndex, questions, correctIdx, choices, sorted, roundAn
   )
 }
 
+function loadLS(key, fallback) {
+  try { const v = localStorage.getItem(key); return v !== null ? JSON.parse(v) : fallback } catch { return fallback }
+}
+function saveLS(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)) } catch {}
+}
+
 export default function App() {
-  const [showTutorial, setShowTutorial] = useState(true)
+  const [showTutorial, setShowTutorial] = useState(() => loadLS('tq_tutorial', true))
   const [phase, setPhase] = useState(PHASES.JOIN)
-  const [channel, setChannel] = useState('')
-  const [settings, setSettings] = useState({ timer: 15, amount: 10, category: '', difficulty: '' })
+  const [channel, setChannel] = useState(() => loadLS('tq_channel', ''))
+  const [settings, setSettings] = useState(() => loadLS('tq_settings', { timer: 15, amount: 10, categories: [], difficulty: '' }))
+  const [allCategories, setAllCategories] = useState([])
+  const [catSearch, setCatSearch] = useState('')
   const [showTimer, setShowTimer] = useState(false)
   const [questions, setQuestions] = useState([])
   const [qIndex, setQIndex] = useState(0)
@@ -450,6 +459,21 @@ export default function App() {
   useEffect(() => { phaseRef.current = phase }, [phase])
   useEffect(() => { scoresRef.current = scores }, [scores])
   useEffect(() => { choicesRef.current = choices }, [choices])
+
+  useEffect(() => {
+    fetch('https://opentdb.com/api_category.php')
+      .then(r => r.json())
+      .then(d => {
+        const cats = d.trivia_categories || []
+        setAllCategories(cats)
+        setSettings(s => s.categories.length === 0 ? { ...s, categories: cats.map(c => c.id) } : s)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => { saveLS('tq_tutorial', showTutorial) }, [showTutorial])
+  useEffect(() => { saveLS('tq_channel', channel) }, [channel])
+  useEffect(() => { saveLS('tq_settings', settings) }, [settings])
 
   const canvasRef = useRef(null)
   const particlePoolRef = useRef([])
@@ -681,19 +705,36 @@ export default function App() {
   }
 
   const startGame = async () => {
-    getAudioCtx() // unblock audio on user gesture
-    const params = new URLSearchParams({ amount: settings.amount, type: 'multiple' })
-    if (settings.category) params.set('category', settings.category)
-    if (settings.difficulty) params.set('difficulty', settings.difficulty)
-    const res = await fetch(`https://opentdb.com/api.php?${params}`)
-    const data = await res.json()
-    if (!data.results?.length) return alert('No questions found — try different settings.')
-    setQuestions(data.results)
+    getAudioCtx()
+    const cats = settings.categories
+    let results = []
+    try {
+      if (!cats.length) {
+        const params = new URLSearchParams({ amount: settings.amount, type: 'multiple' })
+        if (settings.difficulty) params.set('difficulty', settings.difficulty)
+        const res = await fetch(`https://opentdb.com/api.php?${params}`)
+        const data = await res.json()
+        results = data.results || []
+      } else {
+        const perCat = Math.ceil(settings.amount / cats.length)
+        const fetches = cats.map(cid => {
+          const params = new URLSearchParams({ amount: perCat, type: 'multiple', category: cid })
+          if (settings.difficulty) params.set('difficulty', settings.difficulty)
+          return fetch(`https://opentdb.com/api.php?${params}`).then(r => r.json()).then(d => d.results || [])
+        })
+        const arrays = await Promise.all(fetches)
+        results = shuffle(arrays.flat()).slice(0, settings.amount)
+      }
+    } catch {
+      return alert('Failed to fetch questions — check your connection.')
+    }
+    if (!results.length) return alert('No questions found — try different settings.')
+    setQuestions(results)
     setScores({})
     scoresRef.current = {}
     setHistory([])
     setQIndex(0)
-    loadQuestion(data.results, 0, settings.timer)
+    loadQuestion(results, 0, settings.timer)
   }
 
   const nextQuestion = () => {
@@ -785,20 +826,42 @@ export default function App() {
               </div>
             </div>
             <div className="config-card wide">
-              <label>Category</label>
-              <select value={settings.category} onChange={e => setSettings(s => ({ ...s, category: e.target.value }))}>
-                <option value="">Any Category</option>
-                <option value="9">General Knowledge</option>
-                <option value="10">Books</option>
-                <option value="11">Film</option>
-                <option value="12">Music</option>
-                <option value="15">Video Games</option>
-                <option value="17">Science & Nature</option>
-                <option value="18">Computers</option>
-                <option value="21">Sports</option>
-                <option value="23">History</option>
-                <option value="27">Animals</option>
-              </select>
+              <div className="cat-header">
+                <label>
+                  Categories
+                  <span className="cat-count">{settings.categories.length} selected</span>
+                </label>
+                <div className="cat-actions">
+                  <button className="cat-action-btn" onClick={() => setSettings(s => ({ ...s, categories: allCategories.map(c => c.id) }))}>All</button>
+                </div>
+              </div>
+              <input
+                className="cat-search"
+                placeholder="Search categories…"
+                value={catSearch}
+                onChange={e => setCatSearch(e.target.value)}
+              />
+              <div className="cat-grid">
+                {allCategories
+                  .filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase()))
+                  .map(c => {
+                    const checked = settings.categories.includes(c.id)
+                    return (
+                      <label key={c.id} className={`cat-pill ${checked ? 'cat-pill-on' : ''}`}>
+                        <input type="checkbox" checked={checked} onChange={() => {
+                          setSettings(s => ({
+                            ...s,
+                            categories: checked
+                              ? s.categories.filter(id => id !== c.id)
+                              : [...s.categories, c.id]
+                          }))
+                        }} />
+                        {c.name.replace(/^Entertainment: |^Science: /, '')}
+                      </label>
+                    )
+                  })
+                }
+              </div>
             </div>
             <div className="config-card wide">
               <label>Difficulty</label>
@@ -813,7 +876,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <button className="btn-primary btn-lg btn-start" onClick={startGame}>Start Game</button>
+          <button className="btn-primary btn-lg btn-start" onClick={startGame} disabled={settings.categories.length === 0}>Start Game</button>
         </div>
       )}
 
