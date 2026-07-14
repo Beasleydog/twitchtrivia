@@ -1,27 +1,31 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #0c0c0f;
-  --surface: #16161a;
-  --surface2: #1e1e24;
-  --border: #2a2a35;
-  --text: #f0f0f5;
-  --muted: #5a5a70;
-  --accent: #7c3aed;
-  --accent-dim: rgba(124,58,237,0.15);
-  --green: #22c55e;
-  --green-dim: rgba(34,197,94,0.15);
-  --red: #ef4444;
-  --red-dim: rgba(239,68,68,0.15);
-  --orange: #f97316;
-  --a: #3b82f6;
-  --b: #8b5cf6;
-  --c: #ec4899;
-  --d: #f59e0b;
-  --a-dim: rgba(59,130,246,0.12);
-  --b-dim: rgba(139,92,246,0.12);
-  --c-dim: rgba(236,72,153,0.12);
-  --d-dim: rgba(245,158,11,0.12);
+  --bg: #f6f6f2;
+  --surface: #ffffff;
+  --surface2: #eeeeea;
+  --border: #d2d2cb;
+  --text: #191a18;
+  --muted: #686b65;
+
+  --accent: #245745;
+  --accent-dim: #e3eee9;
+
+  --green: #18703d;
+  --green-dim: #e4f3e9;
+  --red: #b4232f;
+  --red-dim: #f8e7e8;
+  --orange: #a84f12;
+
+  --a: #255eb5;
+  --b: #6842a8;
+  --c: #aa355b;
+  --d: #986b0b;
+
+  --a-dim: #e5edf9;
+  --b-dim: #eee8f7;
+  --c-dim: #f6e7ed;
+  --d-dim: #f6efdc;
 }
 
 body {
@@ -890,3 +894,285 @@ kbd {
   border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
 }
 .tut-btn-back:hover { color: #fff; border-color: var(--text); }
+
+/* Flat light theme overrides */
+
+*, *::before, *::after {
+  background-image: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Flat buttons */
+
+.btn-primary {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: #fff;
+  font-weight: 650;
+  transition: background 120ms ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #193f32;
+  opacity: 1;
+  transform: none;
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: none;
+}
+
+/* Reduce excessive rounding */
+
+.logo-mark,
+.modal,
+.input-group,
+.config-card,
+.chat-instructions,
+.choice,
+.choices-hover-hint,
+.host-bar,
+.reveal-choice,
+.leaderboard,
+.end-player-list,
+.end-question-list,
+.tut-modal,
+.tut-card,
+.tut-choice,
+.tut-twitch-chat,
+.tut-key,
+.tut-reveal-note,
+.tut-lb-preview,
+.tut-scoring-card {
+  border-radius: 4px;
+}
+
+.gear-btn,
+.nudge,
+.stepper button,
+select,
+.cat-action-btn,
+.cat-search,
+kbd,
+.tut-skip,
+.tut-btn-back {
+  border-radius: 3px;
+}
+
+/* Stop turning every control into a pill */
+
+.connected-badge,
+.cat-count,
+.cat-pill,
+.pill,
+.host-locked,
+.answered-pill,
+.lb-pick,
+.hq-answer {
+  border-radius: 3px;
+}
+
+.connected-badge,
+.config-card label,
+.q-diff,
+.end-section-label,
+.tut-label {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Light overlays without glass/blur effects */
+
+.overlay,
+.tut-overlay {
+  background: rgba(25, 26, 24, 0.32);
+  backdrop-filter: none;
+}
+
+.choices-hover-hint {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--border);
+  backdrop-filter: none;
+}
+
+.hover-hint-title,
+.hover-hint-map span {
+  color: var(--text);
+}
+
+.hover-hint-sub {
+  color: var(--muted);
+}
+
+.hover-hint-map kbd {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* More restrained typography */
+
+.join-header h1,
+.setup-header h1,
+.screen-end h1,
+.tut-step h2 {
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.question-text {
+  font-weight: 600;
+}
+
+.countdown-num {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.tut-step {
+  animation: none;
+}
+
+/* Remove remaining dark tutorial colors */
+
+.tut-step h2,
+.tut-step strong,
+.tut-card-title,
+.tut-question,
+.tut-choice,
+.tut-key-num,
+.tut-reveal-note strong,
+.tut-lb-name {
+  color: var(--text);
+}
+
+.tut-step p,
+.tut-hero p,
+.tut-card p,
+.tut-reveal-note,
+.tut-btn-back {
+  color: var(--muted);
+}
+
+.tut-logo {
+  border-radius: 4px;
+  color: #fff;
+}
+
+.tut-skip {
+  color: var(--text);
+}
+
+.tut-btn-back:hover {
+  color: var(--text);
+}
+
+/* Light tutorial chat preview */
+
+.tut-twitch-chat {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.tut-chat-header {
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.tut-chat-colon,
+.tut-key-eq,
+.tut-lb-score,
+.tut-scoring-label,
+.tut-scoring-arrow {
+  color: var(--muted);
+}
+
+.tut-chat-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+
+/* Subtle selected rows instead of purple glow */
+
+.lb-row.lb-top,
+.lb-host,
+.tut-lb-you {
+  background: var(--accent-dim);
+}
+
+/* Solid podium colors—no gradients */
+
+.p1 {
+  background: #c49a2d;
+}
+
+.p2 {
+  background: #8b9299;
+}
+
+.p3 {
+  background: #a86e43;
+}
+
+.podium-block {
+  border-radius: 3px 3px 0 0;
+}
+
+/* Make cards feel structural rather than decorative */
+
+.config-card,
+.choice,
+.reveal-choice,
+.leaderboard,
+.end-player-list,
+.end-question-list,
+.tut-card {
+  border-color: var(--border);
+}
+
+.choice {
+  padding: 0.8rem 1rem;
+}
+
+.choice-key {
+  border-radius: 3px;
+}
+
+.cat-pill,
+.pill {
+  font-weight: 500;
+}
+
+.cat-pill-on,
+.pill-active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}

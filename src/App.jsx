@@ -213,6 +213,30 @@ const PHASES = { JOIN: 'join', SETUP: 'setup', COUNTDOWN: 'countdown', QUESTION:
 const LETTERS = ['A', 'B', 'C', 'D']
 const COLORS = ['choice-a', 'choice-b', 'choice-c', 'choice-d']
 
+const TRIVIA_CATEGORIES = [
+  { id: 'general_knowledge', name: 'General Knowledge' },
+  { id: 'arts_and_literature', name: 'Arts & Literature' },
+  { id: 'film_and_tv', name: 'Film & TV' },
+  { id: 'food_and_drink', name: 'Food & Drink' },
+  { id: 'geography', name: 'Geography' },
+  { id: 'history', name: 'History' },
+  { id: 'music', name: 'Music' },
+  { id: 'science', name: 'Science' },
+  { id: 'society_and_culture', name: 'Society & Culture' },
+  { id: 'sport_and_leisure', name: 'Sport & Leisure' },
+]
+
+const TRIVIA_CATEGORY_IDS = new Set(
+  TRIVIA_CATEGORIES.map(category => category.id)
+)
+
+const DEFAULT_SETTINGS = {
+  timer: 15,
+  amount: 10,
+  categories: TRIVIA_CATEGORIES.map(category => category.id),
+  difficulty: '',
+}
+
 const ROASTS = [
   'rip {name} who said {answer} 💀',
   '{name} said {answer}?? bro what',
@@ -421,12 +445,26 @@ function saveLS(key, val) {
   try { localStorage.setItem(key, JSON.stringify(val)) } catch {}
 }
 
+function loadSettings() {
+  const saved = loadLS('tq_settings', DEFAULT_SETTINGS)
+  const validCategories = Array.isArray(saved?.categories)
+    ? saved.categories.filter(category => TRIVIA_CATEGORY_IDS.has(category))
+    : []
+
+  return {
+    ...DEFAULT_SETTINGS,
+    ...saved,
+    categories: validCategories.length
+      ? validCategories
+      : DEFAULT_SETTINGS.categories,
+  }
+}
+
 export default function App() {
   const [showTutorial, setShowTutorial] = useState(() => loadLS('tq_tutorial', true))
   const [phase, setPhase] = useState(PHASES.JOIN)
   const [channel, setChannel] = useState(() => loadLS('tq_channel', ''))
-  const [settings, setSettings] = useState(() => loadLS('tq_settings', { timer: 15, amount: 10, categories: [], difficulty: '' }))
-  const [allCategories, setAllCategories] = useState([])
+  const [settings, setSettings] = useState(loadSettings)
   const [catSearch, setCatSearch] = useState('')
   const [showTimer, setShowTimer] = useState(false)
   const [questions, setQuestions] = useState([])
@@ -459,17 +497,6 @@ export default function App() {
   useEffect(() => { phaseRef.current = phase }, [phase])
   useEffect(() => { scoresRef.current = scores }, [scores])
   useEffect(() => { choicesRef.current = choices }, [choices])
-
-  useEffect(() => {
-    fetch('https://opentdb.com/api_category.php')
-      .then(r => r.json())
-      .then(d => {
-        const cats = d.trivia_categories || []
-        setAllCategories(cats)
-        setSettings(s => s.categories.length === 0 ? { ...s, categories: cats.map(c => c.id) } : s)
-      })
-      .catch(() => {})
-  }, [])
 
   useEffect(() => { saveLS('tq_tutorial', showTutorial) }, [showTutorial])
   useEffect(() => { saveLS('tq_channel', channel) }, [channel])
@@ -510,7 +537,7 @@ export default function App() {
       angle: (Math.random() - 0.5) * 0.5,
       size: 10 + Math.floor(Math.random() * 18), // 10–27px
       opacity: 0.55 + Math.random() * 0.4,
-      color: color || '#ffffff',
+      color: color || '#33413c',
     })
 
     if (pool.length > 500) pool.splice(0, pool.length - 500)
@@ -706,29 +733,69 @@ export default function App() {
 
   const startGame = async () => {
     getAudioCtx()
-    const cats = settings.categories
+
+    if (!settings.categories.length) {
+      return alert('Select at least one category.')
+    }
+
     let results = []
+
     try {
-      if (!cats.length) {
-        const params = new URLSearchParams({ amount: settings.amount, type: 'multiple' })
-        if (settings.difficulty) params.set('difficulty', settings.difficulty)
-        const res = await fetch(`https://opentdb.com/api.php?${params}`)
-        const data = await res.json()
-        results = data.results || []
-      } else {
-        const perCat = Math.ceil(settings.amount / cats.length)
-        const fetches = cats.map(cid => {
-          const params = new URLSearchParams({ amount: perCat, type: 'multiple', category: cid })
-          if (settings.difficulty) params.set('difficulty', settings.difficulty)
-          return fetch(`https://opentdb.com/api.php?${params}`).then(r => r.json()).then(d => d.results || [])
-        })
-        const arrays = await Promise.all(fetches)
-        results = shuffle(arrays.flat()).slice(0, settings.amount)
+      const params = new URLSearchParams({
+        limit: settings.amount,
+        categories: settings.categories.join(','),
+      })
+
+      if (settings.difficulty) {
+        params.set('difficulties', settings.difficulty)
       }
-    } catch {
+
+      const res = await fetch(
+        `https://the-trivia-api.com/v2/questions?${params}`
+      )
+
+      if (!res.ok) {
+        throw new Error(`Trivia API returned ${res.status}`)
+      }
+
+      const data = await res.json()
+
+      if (!Array.isArray(data)) {
+        throw new Error('Trivia API returned an invalid response')
+      }
+
+      // Normalize the new API response to the format used by the game.
+      results = data
+        .map(q => ({
+          category: q.category,
+          difficulty: q.difficulty,
+          type: 'multiple',
+          question: q.question?.text,
+          correct_answer: q.correctAnswer,
+          incorrect_answers: q.incorrectAnswers,
+        }))
+        .filter(q =>
+          q.question &&
+          q.correct_answer &&
+          Array.isArray(q.incorrect_answers) &&
+          q.incorrect_answers.length === 3
+        )
+        .slice(0, settings.amount)
+    } catch (error) {
+      console.error(error)
       return alert('Failed to fetch questions — check your connection.')
     }
-    if (!results.length) return alert('No questions found — try different settings.')
+
+    if (!results.length) {
+      return alert('No questions found — try different settings.')
+    }
+
+    if (results.length < settings.amount) {
+      return alert(
+        `Only ${results.length} of ${settings.amount} questions were available. Try fewer questions or broader settings.`
+      )
+    }
+
     setQuestions(results)
     setScores({})
     scoresRef.current = {}
@@ -832,7 +899,7 @@ export default function App() {
                   <span className="cat-count">{settings.categories.length} selected</span>
                 </label>
                 <div className="cat-actions">
-                  <button className="cat-action-btn" onClick={() => setSettings(s => ({ ...s, categories: allCategories.map(c => c.id) }))}>All</button>
+                  <button className="cat-action-btn" onClick={() => setSettings(s => ({ ...s, categories: TRIVIA_CATEGORIES.map(c => c.id) }))}>All</button>
                 </div>
               </div>
               <input
@@ -842,7 +909,7 @@ export default function App() {
                 onChange={e => setCatSearch(e.target.value)}
               />
               <div className="cat-grid">
-                {allCategories
+                {TRIVIA_CATEGORIES
                   .filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase()))
                   .map(c => {
                     const checked = settings.categories.includes(c.id)
